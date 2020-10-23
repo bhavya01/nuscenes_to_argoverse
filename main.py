@@ -1,7 +1,7 @@
+import argparse
 import json
 import os
 import shutil
-import argparse
 from typing import Any, Dict, Type
 
 import numpy as np
@@ -9,14 +9,15 @@ import pandas as pd
 from pyntcloud import PyntCloud
 from pyquaternion import Quaternion
 
-
+from argoverse.utils.se3 import SE3
+from argoverse.utils.transform import quat2rotmat
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import Box, LidarPointCloud
 
 """
 Converts the nuScenes dataset into the Argoverse format.
 
-In the nuScenes dataset, samples contains annotated data sampled at a frequency
+In the nuScenes dataset, samples contain annotated data sampled at a frequency
 of 2Hz, whereas sweeps contains all the unannotated data. The capture frequency
 for camera is 12Hz and for lidar it 20Hz. Lidar data is provided in lidar sensor
 coordinate system, annotations are provided in the global city coordinate frame,
@@ -37,7 +38,7 @@ SENSOR_NAMES = {
 }
 
 def get_argo_label(label: str) -> str:
-    """Map the nuscenes labels to argverse labels"""
+    """Map the nuscenes labels to argoverse labels"""
     if 'human' in label:
         return 'PEDESTRIAN'
     if 'vehicle' in label:
@@ -149,7 +150,15 @@ def main(args: argparse.Namespace) -> None:
                         # nuscenes lidar data is stored as (x, y, z, intensity, ring index)
                         scan = np.fromfile(file_path, dtype=np.float32)
                         points = scan.reshape((-1, 5))
-                        data = {"x": points[:, 0], "y": points[:, 1], "z": points[:, 2]}
+
+                        # Transform lidar points from point sensor frame to egovehicle frame
+                        calibration = nusc.get('calibrated_sensor', sensor_data['calibrated_sensor_token'])
+                        egovehicle_R_lidar = quat2rotmat(calibration['rotation'])
+                        egovehicle_t_lidar = np.array(calibration['translation'])
+                        egovehicle_SE3_lidar = SE3(rotation=egovehicle_R_lidar, translation=egovehicle_t_lidar)
+                        points_egovehicle = egovehicle_SE3_lidar.transform_point_cloud(points[:, :3])
+
+                        data = {"x": points_egovehicle[:, 0], "y": points_egovehicle[:, 1], "z": points_egovehicle[:, 2]}
                         cloud = PyntCloud(pd.DataFrame(data))
                         cloud_fpath = os.path.join(output_sensor_path, f"PC_{timestamp}.ply")
                         cloud.to_file(cloud_fpath)
@@ -175,15 +184,14 @@ def main(args: argparse.Namespace) -> None:
             
             for ann_token in sample['anns']:
                 annotation = nusc.get('sample_annotation', ann_token)
-                box = Box(annotation['translation'], annotation['size'], Quaternion(annotation['rotation']))
+                city_SE3_object = SE3(quat2rotmat(annotation['rotation']), np.array(annotation['translation']))
+                city_SE3_egovehicle = SE3(quat2rotmat(ego_pose['rotation']), np.array(ego_pose['translation']))
+                egovehicle_SE3_city = city_SE3_egovehicle.inverse()
+                egovehicle_SE3_object = egovehicle_SE3_city.right_multiply_with_se3(city_SE3_object)
 
-                # Convert the box into ego_vehicle coordinates
-                box.translate(-np.array(ego_pose['translation']))
-                box.rotate(Quaternion(ego_pose['rotation']).inverse)
-
-                x, y, z = box.center
-                width, length, height = box.wlh
-                qw, qx, qy, qz = box.orientation.elements
+                x, y, z = egovehicle_SE3_object.translation
+                qw, qx, qy, qz = Quaternion(matrix=egovehicle_SE3_object.rotation)
+                width, length, height = annotation['size']
                 label_class = annotation['category_name']
 
                 tracked_labels.append({
