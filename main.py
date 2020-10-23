@@ -1,7 +1,7 @@
+import argparse
 import json
 import os
 import shutil
-import argparse
 from typing import Any, Dict, Type
 
 import numpy as np
@@ -16,7 +16,7 @@ from nuscenes.utils.data_classes import Box, LidarPointCloud
 """
 Converts the nuScenes dataset into the Argoverse format.
 
-In the nuScenes dataset, samples contains annotated data sampled at a frequency
+In the nuScenes dataset, samples contain annotated data sampled at a frequency
 of 2Hz, whereas sweeps contains all the unannotated data. The capture frequency
 for camera is 12Hz and for lidar it 20Hz. Lidar data is provided in lidar sensor
 coordinate system, annotations are provided in the global city coordinate frame,
@@ -37,7 +37,7 @@ SENSOR_NAMES = {
 }
 
 def get_argo_label(label: str) -> str:
-    """Map the nuscenes labels to argverse labels"""
+    """Map the nuscenes labels to argoverse labels"""
     if 'human' in label:
         return 'PEDESTRIAN'
     if 'vehicle' in label:
@@ -148,8 +148,16 @@ def main(args: argparse.Namespace) -> None:
                     if sensor == 'LIDAR_TOP':
                         # nuscenes lidar data is stored as (x, y, z, intensity, ring index)
                         scan = np.fromfile(file_path, dtype=np.float32)
-                        points = scan.reshape((-1, 5))
-                        data = {"x": points[:, 0], "y": points[:, 1], "z": points[:, 2]}
+                        points = scan.reshape((-1, 5)).T
+
+                        # Transform lidar points from point sensor frame to egovehicle frame
+                        calibration = nusc.get('calibrated_sensor', sensor_data['calibrated_sensor_token'])
+                        rot_matrix = Quaternion(calibration['rotation']).rotation_matrix
+                        points[:3, :] = np.dot(rot_matrix, points[:3, :])
+                        for i in range(3):
+                            points[i, :] += calibration['translation'][i]
+
+                        data = {"x": points[0, :], "y": points[1, :], "z": points[2, :]}
                         cloud = PyntCloud(pd.DataFrame(data))
                         cloud_fpath = os.path.join(output_sensor_path, f"PC_{timestamp}.ply")
                         cloud.to_file(cloud_fpath)
