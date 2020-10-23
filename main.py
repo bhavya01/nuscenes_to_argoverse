@@ -184,15 +184,14 @@ def main(args: argparse.Namespace) -> None:
             
             for ann_token in sample['anns']:
                 annotation = nusc.get('sample_annotation', ann_token)
-                box = Box(annotation['translation'], annotation['size'], Quaternion(annotation['rotation']))
+                city_SE3_object = SE3(quat2rotmat(annotation['rotation']), np.array(annotation['translation']))
+                city_SE3_egovehicle = SE3(quat2rotmat(ego_pose['rotation']), np.array(ego_pose['translation']))
+                egovehicle_SE3_city = city_SE3_egovehicle.inverse()
+                egovehicle_SE3_object = egovehicle_SE3_city.right_multiply_with_se3(city_SE3_object)
 
-                # Convert the box into ego_vehicle coordinates
-                box.translate(-np.array(ego_pose['translation']))
-                box.rotate(Quaternion(ego_pose['rotation']).inverse)
-
-                x, y, z = box.center
-                width, length, height = box.wlh
-                qw, qx, qy, qz = box.orientation.elements
+                x, y, z = egovehicle_SE3_object.translation
+                qw, qx, qy, qz = Quaternion(matrix=egovehicle_SE3_object.rotation)
+                width, length, height = annotation['size']
                 label_class = annotation['category_name']
 
                 tracked_labels.append({
