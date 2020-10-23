@@ -9,7 +9,8 @@ import pandas as pd
 from pyntcloud import PyntCloud
 from pyquaternion import Quaternion
 
-
+from argoverse.utils.se3 import SE3
+from argoverse.utils.transform import quat2rotmat
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import Box, LidarPointCloud
 
@@ -148,16 +149,16 @@ def main(args: argparse.Namespace) -> None:
                     if sensor == 'LIDAR_TOP':
                         # nuscenes lidar data is stored as (x, y, z, intensity, ring index)
                         scan = np.fromfile(file_path, dtype=np.float32)
-                        points = scan.reshape((-1, 5)).T
+                        points = scan.reshape((-1, 5))
 
                         # Transform lidar points from point sensor frame to egovehicle frame
                         calibration = nusc.get('calibrated_sensor', sensor_data['calibrated_sensor_token'])
-                        rot_matrix = Quaternion(calibration['rotation']).rotation_matrix
-                        points[:3, :] = np.dot(rot_matrix, points[:3, :])
-                        for i in range(3):
-                            points[i, :] += calibration['translation'][i]
+                        egovehicle_R_lidar = quat2rotmat(calibration['rotation'])
+                        egovehicle_t_lidar = np.array(calibration['translation'])
+                        egovehicle_SE3_lidar = SE3(rotation=egovehicle_R_lidar, translation=egovehicle_t_lidar)
+                        points_egovehicle = egovehicle_SE3_lidar.transform_point_cloud(points[:, :3])
 
-                        data = {"x": points[0, :], "y": points[1, :], "z": points[2, :]}
+                        data = {"x": points_egovehicle[:, 0], "y": points_egovehicle[:, 1], "z": points_egovehicle[:, 2]}
                         cloud = PyntCloud(pd.DataFrame(data))
                         cloud_fpath = os.path.join(output_sensor_path, f"PC_{timestamp}.ply")
                         cloud.to_file(cloud_fpath)
