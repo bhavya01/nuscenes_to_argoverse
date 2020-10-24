@@ -12,7 +12,6 @@ from pyquaternion import Quaternion
 from argoverse.utils.se3 import SE3
 from argoverse.utils.transform import quat2rotmat
 from nuscenes.nuscenes import NuScenes
-from nuscenes.utils.data_classes import Box, LidarPointCloud
 
 """
 Converts the nuScenes dataset into the Argoverse format.
