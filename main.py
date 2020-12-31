@@ -157,7 +157,7 @@ def main(args: argparse.Namespace) -> None:
                         egovehicle_SE3_lidar = SE3(rotation=egovehicle_R_lidar, translation=egovehicle_t_lidar)
                         points_egovehicle = egovehicle_SE3_lidar.transform_point_cloud(points[:, :3])
 
-                        data = {"x": points_egovehicle[:, 0], "y": points_egovehicle[:, 1], "z": points_egovehicle[:, 2]}
+                        data = {"x": points_egovehicle[:, 0], "y": points_egovehicle[:, 1], "z": points_egovehicle[:, 2], "intensity": points[:,3]}
                         cloud = PyntCloud(pd.DataFrame(data))
                         cloud_fpath = os.path.join(output_sensor_path, f"PC_{timestamp}.ply")
                         cloud.to_file(cloud_fpath)
