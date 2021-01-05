@@ -36,6 +36,13 @@ SENSOR_NAMES = {
     'CAM_BACK_RIGHT': 'ring_side_right',
 }
 
+CITY_TO_ID = {
+    "singapore-onenorth": "SON",
+    "boston-seaport": "BSP",
+    "singapore-queenstown": "SQT",
+    "singapore-hollandvillage": "SHV",
+}
+
 def get_argo_label(label: str) -> str:
     """Map the nuscenes labels to argoverse labels"""
     if 'human' in label:
@@ -119,8 +126,11 @@ def main(args: argparse.Namespace) -> None:
         if not os.path.exists(scene_path):
             os.makedirs(scene_path)
 
+        log_token = scene['log_token']
+        nusc_log = nusc.get('log', log_token)
+        nusc_city = nusc_log['location']
         with open(os.path.join(scene_path, f"city_info.json"), 'w') as f:
-            json.dump({"city_name": 'PIT'}, f)
+            json.dump({"city_name": CITY_TO_ID[nusc_city]}, f)
 
         # Calibration info for all the sensors
         calibration_info = get_calibration_info(nusc, scene)
