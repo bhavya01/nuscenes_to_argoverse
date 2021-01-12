@@ -109,6 +109,13 @@ def round_to_micros(t_nanos: int, base: int = 1000) -> int:
     """
     return base * round(t_nanos / base)
 
+def extract_pc(points_egovehicle, points, output_sensor_path, timestamp):
+    data = {"x": points_egovehicle[:, 0], "y": points_egovehicle[:, 1], "z": points_egovehicle[:, 2],
+           "intensity": points[:, 3]}
+    cloud = PyntCloud(pd.DataFrame(data))
+    cloud_fpath = os.path.join(output_sensor_path, f"PC_{timestamp}.ply")
+    cloud.to_file(cloud_fpath)
+
 def main(args: argparse.Namespace) -> None:
     OUTPUT_ROOT = args.argo_dir
     NUSCENES_ROOT = args.nuscenes_dir
@@ -167,10 +174,7 @@ def main(args: argparse.Namespace) -> None:
                         egovehicle_SE3_lidar = SE3(rotation=egovehicle_R_lidar, translation=egovehicle_t_lidar)
                         points_egovehicle = egovehicle_SE3_lidar.transform_point_cloud(points[:, :3])
 
-                        data = {"x": points_egovehicle[:, 0], "y": points_egovehicle[:, 1], "z": points_egovehicle[:, 2], "intensity": points[:,3]}
-                        cloud = PyntCloud(pd.DataFrame(data))
-                        cloud_fpath = os.path.join(output_sensor_path, f"PC_{timestamp}.ply")
-                        cloud.to_file(cloud_fpath)
+                        extract_pc(points_egovehicle, points, output_sensor_path, timestamp)
                     else: 
                         shutil.copy(file_path, os.path.join(output_sensor_path, f"{argo_sensor}_{timestamp}.jpg"))
 
