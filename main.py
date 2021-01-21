@@ -82,9 +82,7 @@ def get_calibration_info(nusc: Type[NuScenes], scene: Dict[Any, Any]) -> Dict[An
     cam_data = []
     for nuscenes_sensor, argoverse_sensor in SENSOR_NAMES.items():
         sensor_data = nusc.get("sample_data", sample["data"][nuscenes_sensor])
-        calibration = nusc.get(
-            "calibrated_sensor", sensor_data["calibrated_sensor_token"]
-        )
+        calibration = nusc.get("calibrated_sensor", sensor_data["calibrated_sensor_token"])
         transformation_dict = {}
         transformation_dict["rotation"] = {"coefficients": calibration["rotation"]}
         transformation_dict["translation"] = calibration["translation"]
@@ -123,8 +121,12 @@ def write_ply(
     output_sensor_path: str,
     timestamp: int,
 ) -> None:
-    """
-    Write the ply files corresponding to pointcloud.
+    """Write the ply files corresponding to pointcloud.
+    Args:
+        points_egovehicle: Nx3 in egovehicle frame
+        points: Nx5 in lidar frame
+        output sensor path: output path for the given sensor
+        timestamp: timestamp of the sample
     """
     data = {
         "x": points_egovehicle[:, 0],
@@ -189,27 +191,17 @@ def main(args: argparse.Namespace) -> None:
                         points = scan.reshape((-1, 5))
 
                         # Transform lidar points from point sensor frame to egovehicle frame
-                        calibration = nusc.get(
-                            "calibrated_sensor", sensor_data["calibrated_sensor_token"]
-                        )
+                        calibration = nusc.get("calibrated_sensor", sensor_data["calibrated_sensor_token"])
                         egovehicle_R_lidar = quat2rotmat(calibration["rotation"])
                         egovehicle_t_lidar = np.array(calibration["translation"])
-                        egovehicle_SE3_lidar = SE3(
-                            rotation=egovehicle_R_lidar, translation=egovehicle_t_lidar
-                        )
-                        points_egovehicle = egovehicle_SE3_lidar.transform_point_cloud(
-                            points[:, :3]
-                        )
+                        egovehicle_SE3_lidar = SE3(rotation=egovehicle_R_lidar, translation=egovehicle_t_lidar)
+                        points_egovehicle = egovehicle_SE3_lidar.transform_point_cloud(points[:, :3])
 
-                        extract_pc(
-                            points_egovehicle, points, output_sensor_path, timestamp
-                        )
+                        extract_pc(points_egovehicle, points, output_sensor_path, timestamp)
                     else:
                         shutil.copy(
                             file_path,
-                            os.path.join(
-                                output_sensor_path, f"{argo_sensor}_{timestamp}.jpg"
-                            ),
+                            os.path.join(output_sensor_path, f"{argo_sensor}_{timestamp}.jpg"),
                         )
 
                     if ego_pose is None:
@@ -224,9 +216,7 @@ def main(args: argparse.Namespace) -> None:
                 "rotation": ego_pose["rotation"],
                 "translation": ego_pose["translation"],
             }
-            with open(
-                os.path.join(poses_path, f"city_SE3_egovehicle_{timestamp}.json"), "w"
-            ) as f:
+            with open(os.path.join(poses_path, f"city_SE3_egovehicle_{timestamp}.json"), "w") as f:
                 json.dump(ego_pose_dict, f)
 
             # Object annotations
@@ -240,13 +230,9 @@ def main(args: argparse.Namespace) -> None:
                     quat2rotmat(annotation["rotation"]),
                     np.array(annotation["translation"]),
                 )
-                city_SE3_egovehicle = SE3(
-                    quat2rotmat(ego_pose["rotation"]), np.array(ego_pose["translation"])
-                )
+                city_SE3_egovehicle = SE3(quat2rotmat(ego_pose["rotation"]), np.array(ego_pose["translation"]))
                 egovehicle_SE3_city = city_SE3_egovehicle.inverse()
-                egovehicle_SE3_object = egovehicle_SE3_city.right_multiply_with_se3(
-                    city_SE3_object
-                )
+                egovehicle_SE3_object = egovehicle_SE3_city.right_multiply_with_se3(city_SE3_object)
 
                 x, y, z = egovehicle_SE3_object.translation
                 qw, qx, qy, qz = Quaternion(matrix=egovehicle_SE3_object.rotation)
@@ -266,9 +252,7 @@ def main(args: argparse.Namespace) -> None:
                     }
                 )
 
-            json_fpath = os.path.join(
-                labels_path, f"tracked_object_labels_{timestamp}.json"
-            )
+            json_fpath = os.path.join(labels_path, f"tracked_object_labels_{timestamp}.json")
             with open(json_fpath, "w") as f:
                 json.dump(tracked_labels, f)
 

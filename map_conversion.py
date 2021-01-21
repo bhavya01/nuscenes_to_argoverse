@@ -15,7 +15,6 @@ from nuscenes.map_expansion import arcline_path_utils
 """
 Converts the nuScenes map into the Argoverse format.
 The nuscenes map is a json file, and is converted to an xml for use with argoverse codebase.
-
 """
 
 filename_to_id = {
@@ -24,6 +23,15 @@ filename_to_id = {
     "singapore-onenorth": "SON_10322",
     "singapore-queenstown": "SQT_10324",
 }
+
+LANE_DISCRETIZATION_RESOLUTION_M = 0.5  # meters
+
+# Set defaults for fields not provided in the nuscenes map, but required in argoverse maps
+DEFAULT_TURN_DIRECTION = "NONE"
+DEFAULT_TRAFFIC_CONTROL = "False"
+DEFAULT_IS_INTERSECTION = "False"
+DEFAULT_L_NEIGHBOR = "None"
+DEFAULT_R_NEIGHBOR = "None"
 
 
 def populate_lane_dict(
@@ -43,11 +51,9 @@ def populate_lane_dict(
     for way in data["lane"]:
         if way["token"] == "8f23d3ed-1089-4fcf-a178-a174abc69938":
             continue
-        lane_record = nusc_map.get_lane(
-            way["token"]
-        )  # get arcline associated with lane
+        lane_record = nusc_map.get_lane(way["token"])  # get arcline associated with lane
         poses = arcline_path_utils.discretize_lane(
-            lane_record, resolution_meters=0.5
+            lane_record, LANE_DISCRETIZATION_RESOLUTION_M
         )  # discretize the lane to given resolution
         for pose in poses:
             currNode = (pose[0], pose[1])
@@ -63,9 +69,9 @@ def populate_lane_dict(
 
 
 def populate_polys(data: Dict[str, Iterable[Any]]) -> Dict[str, np.ndarray]:
-    """
-    Returns a dictionary poly_dict
-    poly_dict maps a lane polygon in the original map to its exterior points.
+    """Create a lookup table of the exterior lane polygon boundary for each lane
+    Returns:
+        poly_dict: map from lane token to array of shape (N,2), representing x,y coordinates of their exterior nodes
     """
     # Map nodes in the original json to their x, y coordinates
     node_dict = {}  # k: node_token v: (x,y)
@@ -74,7 +80,6 @@ def populate_polys(data: Dict[str, Iterable[Any]]) -> Dict[str, np.ndarray]:
     for node in data["node"]:
         node_dict[node["token"]] = (node["x"], node["y"])
 
-    # Map polygons in the original json to the x,y coordinates of their exterior nodes
     poly_dict = {}  # k: poly_token v: np.ndarray of shape (N,2)
 
     # Loop over all nodes in the json to populate the node_dict
@@ -126,23 +131,23 @@ def create_lanes_xml(
         node.set("lane_id", str(curr_id))
         traffic = ET.SubElement(node, "tag")
         traffic.set("k", "has_traffic_control")
-        traffic.set("v", "False")
+        traffic.set("v", DEFAULT_TRAFFIC_CONTROL)
 
         turn = ET.SubElement(node, "tag")
         turn.set("k", "turn_direction")
-        turn.set("v", "NONE")
+        turn.set("v", DEFAULT_TURN_DIRECTION)
 
         intersection = ET.SubElement(node, "tag")
         intersection.set("k", "is_intersection")
-        intersection.set("v", "False")
+        intersection.set("v", DEFAULT_IS_INTERSECTION)
 
         ln = ET.SubElement(node, "tag")
         ln.set("k", "l_neighbor_id")
-        ln.set("v", "None")
+        ln.set("v", DEFAULT_L_NEIGHBOR)
 
         rn = ET.SubElement(node, "tag")
         rn.set("k", "r_neighbor_id")
-        rn.set("v", "None")
+        rn.set("v", DEFAULT_R_NEIGHBOR)
 
         for waypoint in lane_dict[way["token"]]:
             nd = ET.SubElement(node, "nd")
@@ -173,9 +178,7 @@ def create_lanes_xml(
         tableidx_to_laneid_map[table_idx_counter] = lane_id
         table_idx_counter += 1
 
-        xmin, ymin, xmax, ymax = compute_point_cloud_bbox(
-            poly_dict[way["polygon_token"]]
-        )
+        xmin, ymin, xmax, ymax = compute_point_cloud_bbox(poly_dict[way["polygon_token"]])
         halluc_bbox_table += [(xmin, ymin, xmax, ymax)]
 
     halluc_bbox_table = np.array(halluc_bbox_table)
@@ -187,19 +190,15 @@ def create_lanes_xml(
         f"{argo_dir}/{filename_to_id[filename]}_halluc_bbox_table.npy",
         halluc_bbox_table,
     )
-    with open(
-        f"{argo_dir}/{filename_to_id[filename]}_tableidx_to_laneid_map.json", "w"
-    ) as outfile:
+    with open(f"{argo_dir}/{filename_to_id[filename]}_tableidx_to_laneid_map.json", "w") as outfile:
         json.dump(tableidx_to_laneid_map, outfile)
 
     tree = ET.ElementTree(root)
-    with open(
-        f"{argo_dir}/pruned_nuscenes_{filename_to_id[filename]}_vector_map.xml", "wb"
-    ) as files:
+    with open(f"{argo_dir}/pruned_nuscenes_{filename_to_id[filename]}_vector_map.xml", "wb") as files:
         tree.write(files)
 
 
-def convert_map(args: str) -> None:
+def convert_map(args: argparse.Namespace) -> None:
     """
     Core function of this script. Loads each json file, calls the helper functions to extract relevant information
     from the json files, and finally creates xml files in the argoverse format.
@@ -221,15 +220,11 @@ def convert_map(args: str) -> None:
         root = ET.Element("NuScenesMap")
 
         # Map lane token of nuscenes to node_tokens that form the centerline
-        lane_dict = populate_lane_dict(
-            nusc_map, root, data
-        )  # k: token, v: list of node_token
+        lane_dict = populate_lane_dict(nusc_map, root, data)  # k: token, v: list of node_token
 
         poly_dict = populate_polys(data)
 
-        create_lanes_xml(
-            nusc_map, root, data, filename, args.argo_dir, lane_dict, poly_dict
-        )
+        create_lanes_xml(nusc_map, root, data, filename, args.argo_dir, lane_dict, poly_dict)
 
 
 if __name__ == "__main__":

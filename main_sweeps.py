@@ -9,6 +9,7 @@ import pandas as pd
 from pyntcloud import PyntCloud
 from pyquaternion import Quaternion
 
+from argoverse.utils.json_utils.py import save_json_dict
 from argoverse.utils.se3 import SE3
 from argoverse.utils.transform import quat2rotmat
 from main import get_calibration_info, round_to_micros, write_ply
@@ -48,11 +49,8 @@ def main(args: argparse.Namespace) -> None:
     Convert sweeps and samples into (unannotated) Argoverse format. Overview of algorithm:
 
     1) Iterate over all scenes in the NuScenes dataset. For each scene, obtain first sample in the scene.
-
     2) Get the sample_data corresponding to each of the channels from the sample, and convert it to argo format.
-
     3) While the sample_data is not corresponding to a key_frame, get the next sample_data, and repeat step 2.
-
     4) Go to the next sample while we are in the same scene.
     """
     OUTPUT_ROOT = args.argo_dir
@@ -74,14 +72,12 @@ def main(args: argparse.Namespace) -> None:
         log_token = scene["log_token"]
         nusc_log = nusc.get("log", log_token)
         nusc_city = nusc_log["location"]
-        with open(os.path.join(scene_path, f"city_info.json"), "w") as f:
-            json.dump({"city_name": CITY_TO_ID[nusc_city]}, f)
+        save_json_dict(os.path.join(scene_path, f"city_info.json"), {"city_name": CITY_TO_ID[nusc_city]})
 
         # Calibration info for all the sensors
         calibration_info = get_calibration_info(nusc, scene)
         calib_path = os.path.join(scene_path, f"vehicle_calibration_info.json")
-        with open(calib_path, "w") as f:
-            json.dump(calibration_info, f)
+        save_json_dict(calib_path, calibration_info)
 
         while sample_token != "":
             sample = nusc.get("sample", sample_token)
@@ -112,14 +108,10 @@ def main(args: argparse.Namespace) -> None:
                         # nuscenes lidar data is stored as (x, y, z, intensity, ring index)
                         while i < nsweeps_lidar and sensor_token != "":
                             sensor_data = nusc.get("sample_data", sensor_token)
-                            file_path = os.path.join(
-                                NUSCENES_ROOT, sensor_data["filename"]
-                            )
+                            file_path = os.path.join(NUSCENES_ROOT, sensor_data["filename"])
                             timestamp = round_to_micros(sensor_data["timestamp"])
                             # Not always exactly 10
-                            if (
-                                sensor_data["is_key_frame"] and i != 0
-                            ) or sample_token == "":
+                            if (sensor_data["is_key_frame"] and i != 0) or sample_token == "":
                                 break
                             scan = np.fromfile(file_path, dtype=np.float32)
                             points = scan.reshape((-1, 5))
@@ -135,76 +127,45 @@ def main(args: argparse.Namespace) -> None:
                                 rotation=egovehicle_R_lidar,
                                 translation=egovehicle_t_lidar,
                             )
-                            points_egovehicle = (
-                                egovehicle_SE3_lidar.transform_point_cloud(
-                                    points[:, :3]
-                                )
-                            )
+                            points_egovehicle = egovehicle_SE3_lidar.transform_point_cloud(points[:, :3])
 
-                            write_ply(
-                                points_egovehicle, points, output_sensor_path, timestamp
-                            )
+                            write_ply(points_egovehicle, points, output_sensor_path, timestamp)
 
-                            if not os.path.isfile(
-                                os.path.join(
-                                    poses_path, f"city_SE3_egovehicle_{timestamp}.json"
-                                )
-                            ):
-                                ego_pose = nusc.get(
-                                    "ego_pose", sensor_data["ego_pose_token"]
-                                )
+                            if not os.path.isfile(os.path.join(poses_path, f"city_SE3_egovehicle_{timestamp}.json")):
+                                ego_pose = nusc.get("ego_pose", sensor_data["ego_pose_token"])
                                 ego_pose_dict = {
                                     "rotation": ego_pose["rotation"],
                                     "translation": ego_pose["translation"],
                                 }
-                                with open(
-                                    os.path.join(
-                                        poses_path,
-                                        f"city_SE3_egovehicle_{timestamp}.json",
-                                    ),
-                                    "w",
-                                ) as f:
-                                    json.dump(ego_pose_dict, f)
+
+                                save_json_dict(
+                                    os.path.join(poses_path, f"city_SE3_egovehicle_{timestamp}.json"), ego_pose_dict
+                                )
 
                             sensor_token = sensor_data["next"]
                     else:
                         while i < nsweeps_cam and sensor_token != "":
                             sensor_data = nusc.get("sample_data", sensor_token)
-                            file_path = os.path.join(
-                                NUSCENES_ROOT, sensor_data["filename"]
-                            )
+                            file_path = os.path.join(NUSCENES_ROOT, sensor_data["filename"])
                             timestamp = round_to_micros(sensor_data["timestamp"])
                             # Not always exactly 6
                             if sensor_data["is_key_frame"] and i != 0:
                                 break
                             shutil.copy(
                                 file_path,
-                                os.path.join(
-                                    output_sensor_path, f"{argo_sensor}_{timestamp}.jpg"
-                                ),
+                                os.path.join(output_sensor_path, f"{argo_sensor}_{timestamp}.jpg"),
                             )
                             sensor_token = sensor_data["next"]
 
-                            if not os.path.isfile(
-                                os.path.join(
-                                    poses_path, f"city_SE3_egovehicle_{timestamp}.json"
-                                )
-                            ):
-                                ego_pose = nusc.get(
-                                    "ego_pose", sensor_data["ego_pose_token"]
-                                )
+                            if not os.path.isfile(os.path.join(poses_path, f"city_SE3_egovehicle_{timestamp}.json")):
+                                ego_pose = nusc.get("ego_pose", sensor_data["ego_pose_token"])
                                 ego_pose_dict = {
                                     "rotation": ego_pose["rotation"],
                                     "translation": ego_pose["translation"],
                                 }
-                                with open(
-                                    os.path.join(
-                                        poses_path,
-                                        f"city_SE3_egovehicle_{timestamp}.json",
-                                    ),
-                                    "w",
-                                ) as f:
-                                    json.dump(ego_pose_dict, f)
+                                save_json_dict(
+                                    os.path.join(poses_path, f"city_SE3_egovehicle_{timestamp}.json"), ego_pose_dict
+                                )
 
             sample_token = sample["next"]
 
