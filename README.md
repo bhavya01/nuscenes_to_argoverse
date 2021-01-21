@@ -1,12 +1,15 @@
-# nuscenes_to_argoverse
+# nuScenes to Argoverse Converter
+- `samples` (2 hz) converter: `main.py`
+- `sweeps` (20 hz) and `samples` (2 hz) converter: `main_sweeps.py`
+- map converter: `convert_map.py`
 
 <p align="left">
-  <img src="https://user-images.githubusercontent.com/15787503/96957491-c79e7f00-14c8-11eb-8eaf-32c2b01f4124.gif" height="275">
-  <img src="https://user-images.githubusercontent.com/15787503/96957715-63c88600-14c9-11eb-9476-8469c4b2fe17.gif" height="275">
+  <img src="https://user-images.githubusercontent.com/15787503/96957491-c79e7f00-14c8-11eb-8eaf-32c2b01f4124.gif" height="215">
+  <img src="https://user-images.githubusercontent.com/15787503/96957715-63c88600-14c9-11eb-9476-8469c4b2fe17.gif" height="215">
 </p>
 <p align="left">
-  <img src="https://user-images.githubusercontent.com/15787503/96957958-11d43000-14ca-11eb-9b25-e58798d5f318.gif" height="275">
-  <img src="https://user-images.githubusercontent.com/15787503/96958977-f585c280-14cc-11eb-8f38-1853e30bd1de.gif" height="275">
+  <img src="https://user-images.githubusercontent.com/15787503/96957958-11d43000-14ca-11eb-9b25-e58798d5f318.gif" height="215">
+  <img src="https://user-images.githubusercontent.com/15787503/96958977-f585c280-14cc-11eb-8f38-1853e30bd1de.gif" height="215">
 </p>
 
 ## Dependencies
