@@ -1,7 +1,8 @@
 # nuScenes to Argoverse Converter
-- `samples` (2 hz) converter: `main.py`
-- `sweeps` (20 hz) and `samples` (2 hz) converter: `main_sweeps.py`
-- map converter: `convert_map.py`
+This repository provides a set of tools to convert all nuScenes raw data and map data to the Argoverse format. There are 3 main scripts:
+- nuScenes `samples` (2 hz) converter: `main.py`
+- nuScenes `sweeps` (20 hz) and `samples` (2 hz) converter: `main_sweeps.py`
+- map converter: `map_conversion.py`
 
 <p align="left">
   <img src="https://user-images.githubusercontent.com/15787503/96957491-c79e7f00-14c8-11eb-8eaf-32c2b01f4124.gif" height="215">
