@@ -1,4 +1,4 @@
-import argparse
+impor argparse
 import json
 import math
 import multiprocessing
@@ -47,7 +47,7 @@ CITY_TO_ID = {
 }
 
 
-def main(nusc,args: argparse.Namespace, start_index: int, end_index: int) -> None:
+def main(nusc: NuScenes,args: argparse.Namespace, start_index: int, end_index: int) -> None:
     """
     Convert sweeps and samples into (unannotated) Argoverse format. Overview of algorithm:
 
