@@ -48,10 +48,8 @@ def populate_lane_dict(
     global_id = 0  # New id for nodes in the xml
 
     # Loop over all lanes in the json to populate the lane to node dictionary
-    for way in data["lane"]:
-        if way["token"] == "8f23d3ed-1089-4fcf-a178-a174abc69938":
-            continue
-        lane_record = nusc_map.get_lane(way["token"])  # get arcline associated with lane
+    for way in data["lane"] + data["lane_connector"]:
+        lane_record = nusc_map.get_arcline_path(way["token"])  # get arcline associated with lane
         poses = arcline_path_utils.discretize_lane(
             lane_record, LANE_DISCRETIZATION_RESOLUTION_M
         )  # discretize the lane to given resolution
@@ -118,9 +116,7 @@ def create_lanes_xml(
     table_idx_counter = 0
 
     ## Iterate over the lanes to create the required xml and supporting files
-    for way in data["lane"]:
-        if way["token"] == "8f23d3ed-1089-4fcf-a178-a174abc69938":
-            continue
+    for way in data["lane"] + data["lane_connector"]:
         node = ET.SubElement(root, "way")
 
         if way["token"] not in way_to_lane_id:
@@ -212,7 +208,7 @@ def convert_map(args: argparse.Namespace) -> None:
         "singapore-queenstown",
     ]:
         print(filename)
-        with open(f"/{args.nuscenes_dir}/maps/{filename}.json") as f:
+        with open(f"/{args.nuscenes_dir}/maps/expansion/{filename}.json") as f:
             data = json.load(f)
         nusc_map = NuScenesMap(dataroot=f"/{args.nuscenes_dir}", map_name=filename)
 
@@ -231,7 +227,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--nuscenes-dir",
-        default="/coc/dataset/nuScenes-v1.0/nuScenes-map-expansion-v1.2",
+        default="/coc/dataset/nuScenes-v1.0/",
         type=str,
         help="the path to the directory where the NuScenes map is stored",
     )

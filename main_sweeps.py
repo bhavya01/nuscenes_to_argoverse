@@ -1,7 +1,10 @@
 import argparse
 import json
+import math
+import multiprocessing
 import os
 import shutil
+import sys
 from typing import Any, Dict, Type
 
 import numpy as np
@@ -9,7 +12,7 @@ import pandas as pd
 from pyntcloud import PyntCloud
 from pyquaternion import Quaternion
 
-from argoverse.utils.json_utils.py import save_json_dict
+from argoverse.utils.json_utils import save_json_dict
 from argoverse.utils.se3 import SE3
 from argoverse.utils.transform import quat2rotmat
 from main import get_calibration_info, round_to_micros, write_ply
@@ -44,7 +47,7 @@ CITY_TO_ID = {
 }
 
 
-def main(args: argparse.Namespace) -> None:
+def main(nusc: NuScenes,args: argparse.Namespace, start_index: int, end_index: int) -> None:
     """
     Convert sweeps and samples into (unannotated) Argoverse format. Overview of algorithm:
 
@@ -60,8 +63,8 @@ def main(args: argparse.Namespace) -> None:
     if not os.path.exists(OUTPUT_ROOT):
         os.makedirs(OUTPUT_ROOT)
 
-    nusc = NuScenes(version=NUSCENES_VERSION, dataroot=NUSCENES_ROOT, verbose=True)
-    for scene in nusc.scene:
+    tot_scenes = len(nusc.scene)
+    for scene in nusc.scene[start_index:min(end_index, tot_scenes)]:
         scene_token = scene["token"]
         sample_token = scene["first_sample_token"]
         scene_path = os.path.join(OUTPUT_ROOT, scene_token)
@@ -191,4 +194,34 @@ if __name__ == "__main__":
         help="the path to the directory where the converted data should be written",
     )
     args = parser.parse_args()
-    main(args)
+
+    jobs = []
+
+    NUSCENES_ROOT = args.nuscenes_dir
+    NUSCENES_VERSION = args.nuscenes_version
+    num_processes = 30
+    nusc = NuScenes(version=NUSCENES_VERSION, dataroot=NUSCENES_ROOT, verbose=True)
+
+    total_scenes =   len(nusc.scene)
+    chunk_size = math.ceil(total_scenes / num_processes)
+    print(f"Will divide {total_scenes} items between {num_processes} processes")
+    for i in range(num_processes):
+        start_index = chunk_size * i
+        end_index = start_index + chunk_size
+        p = multiprocessing.Process(
+            target=main,
+            args=(
+                nusc,
+                args,
+                start_index,
+                end_index,
+            ),
+        )
+        jobs.append(p)
+        p.start()
+
+    for job in jobs:
+        job.join()
+
+    print("Finished")
+
